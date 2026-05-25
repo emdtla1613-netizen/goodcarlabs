@@ -1,0 +1,955 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>굿칼랩스 관리자용 - 휴대폰 통합 관리</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    body { background:#0b1220; color:#e5e7eb; font-family: Pretendard, system-ui, sans-serif; }
+    .card { background:#111827; border:1px solid #1f2937; border-radius:16px; padding:16px; }
+    .input { width:100%; background:#0f172a; border:1px solid #334155; color:#f8fafc; border-radius:10px; padding:10px 12px; }
+    .btn { background:#2563eb; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer; }
+    .btn2 { background:#1f2937; color:#e5e7eb; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer; }
+    .chip { background:#0f172a; border:1px solid #334155; color:#e5e7eb; padding:10px 14px; border-radius:999px; font-size:14px; font-weight:600; cursor:pointer; }
+    .chip.active { background:#2563eb; border-color:#2563eb; color:#fff; }
+    .mini-card { background:#0f172a; border:1px solid #334155; border-radius:12px; padding:12px; }
+    .toast { position:fixed; bottom:20px; right:20px; background:#10b981; color:#fff; padding:12px 20px; border-radius:12px; font-weight:600; z-index:9999; transform:translateY(100px); opacity:0; transition:all .3s; }
+    .toast.show { transform:translateY(0); opacity:1; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding:10px 12px; border-bottom:1px solid #1f2937; text-align:left; font-size:14px; }
+    th { color:#94a3b8; font-size:12px; text-transform:uppercase; }
+    .tab-btn { padding:10px 16px; border-radius:10px; font-weight:600; background:#1f2937; color:#94a3b8; cursor:pointer; border:none; }
+    .tab-btn.active { background:#2563eb; color:#fff; }
+    .status-badge { padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+    .status-접수 { background:#3b82f620; color:#60a5fa; }
+    .status-진행중 { background:#f59e0b20; color:#fbbf24; }
+    .status-개통완료 { background:#10b98120; color:#34d399; }
+    .status-취소 { background:#ef444420; color:#f87171; }
+    .status-대기 { background:#f59e0b20; color:#fbbf24; }
+    .status-승인 { background:#10b98120; color:#34d399; }
+    .status-거절 { background:#ef444420; color:#f87171; }
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="max-w-md mx-auto p-6 space-y-6" style="margin-top:100px">
+    <div class="card text-center">
+      <p class="text-sm text-blue-400 font-semibold">굿칼랩스</p>
+      <h1 class="text-3xl font-bold text-white mt-2">휴대폰 견적 / 정책 / 조직 / 정산 통합 플랫폼</h1>
+      <p class="text-sm text-slate-400 mt-4">관리자용 (총판/본사)</p>
+    </div>
+    <div class="card space-y-4">
+      <div class="text-lg font-semibold text-white mb-4">로그인</div>
+      <input id="loginId" class="input" placeholder="아이디" value="admin" />
+      <input id="loginPw" type="password" class="input" placeholder="비밀번호" value="1234" />
+      <button id="loginBtn" class="btn w-full">로그인</button>`r`n      <button id="directAdminEnterBtn" class="btn w-full" style="background:#22c55e;margin-top:8px;" onclick="document.getElementById(\'loginScreen\').classList.add(\'hidden\');document.getElementById(\'mainScreen\').classList.remove(\'hidden\');var u=document.getElementById(\'userInfo\');if(u)u.textContent=\'관리자 (MASTER)\';try{localStorage.setItem(\'굿칼랩스_user\',JSON.stringify({id:\'admin\',name:\'관리자\',role:\'MASTER\'}));if(typeof renderAll===\'function\')renderAll();}catch(e){console.log(e);}return false;">바로 관리자 들어가기</button>
+      <button id="demoLoginBtn" class="btn2 w-full">데모 로그인</button>
+    </div>
+  </div>
+
+  <div id="mainScreen" class="hidden">
+    <div class="max-w-7xl mx-auto p-6 space-y-6">
+      <div id="toast" class="toast">저장 완료</div>
+      <div class="card">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p class="text-sm text-blue-400 font-semibold">굿칼랩스</p>
+            <h1 class="text-3xl font-bold text-white mt-1">휴대폰 통합 관리 시스템</h1>
+            <p class="text-sm text-slate-400 mt-2">관리자용 - 기종/용량/색상/출고가/공시지원금 자동 연동</p>
+          </div>
+          <div class="flex gap-2 items-center">
+            <span id="userInfo" class="text-sm text-slate-400"></span>
+            <button id="logoutBtn" class="btn2">로그아웃</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="card"><div class="text-xs text-slate-400">오늘 개통</div><div id="mTodayOpen" class="text-3xl font-bold text-blue-400 mt-2">0건</div></div>
+        <div class="card"><div class="text-xs text-slate-400">오늘 매출</div><div id="mTodaySales" class="text-3xl font-bold text-emerald-400 mt-2">0원</div></div>
+        <div class="card"><div class="text-xs text-slate-400">등록 정책</div><div id="mPolicies" class="text-3xl font-bold text-amber-400 mt-2">0건</div></div>
+        <div class="card"><div class="text-xs text-slate-400">미정산</div><div id="mSettles" class="text-3xl font-bold text-violet-400 mt-2">0건</div></div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="card"><div class="text-xs text-slate-400">지급완료</div><div id="mPaidSettles" class="text-3xl font-bold text-emerald-400 mt-2">0건</div></div>
+        <div class="card"><div class="text-xs text-slate-400">등록 조직</div><div id="mOrgCount" class="text-3xl font-bold text-white mt-2">0명</div></div>
+        <div class="card"><div class="text-xs text-slate-400">가입 신청</div><div id="mPendingUsers" class="text-3xl font-bold text-amber-400 mt-2">0건</div></div>
+      </div>
+
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn tab-btn active" data-tab="quote">견적 생성</button>
+        <button class="btn2 tab-btn" data-tab="policy">정책표</button>
+        <button class="btn2 tab-btn" data-tab="org">직원/하부점</button>
+        <button class="btn2 tab-btn" data-tab="opening">개통관리</button>
+        <button class="btn2 tab-btn" data-tab="settlement">정산현황</button>
+        <button class="btn2 tab-btn" data-tab="approval">가입승인</button>
+      </div>
+
+      <!-- 견적 생성 -->
+      <section id="tab-quote" class="space-y-4">
+        <div class="grid grid-cols-1 xl:grid-cols-5 gap-4">
+          <div class="xl:col-span-2 card">
+            <h2 class="text-white font-semibold mb-4">견적 입력</h2>
+            
+            <!-- 할인 방법 탭 (업체용과 동일) -->
+            <div class="mb-4">
+              <label style="display:block; font-size:13px; color:#60a5fa; margin-bottom:8px; font-weight:600;">할인 방법</label>
+              <div style="display:flex; gap:8px;">
+                <button id="adminTabSubsidy" class="tab-btn active" style="flex:1; padding:12px; text-align:center; border-radius:10px; border:none; cursor:pointer; background:#2563eb; color:#fff;">
+                  <div style="font-size:13px; font-weight:600;">공통지원금</div>
+                  <div id="adminSubsidyBadge" style="font-size:11px; color:#34d399; margin-top:4px;">유리</div>
+                </button>
+                <button id="adminTabSelective" class="tab-btn" style="flex:1; padding:12px; text-align:center; border-radius:10px; border:none; cursor:pointer; background:#1f2937; color:#94a3b8;">
+                  <div style="font-size:13px; font-weight:600;">선택약정할인</div>
+                  <div id="adminSelectiveBadge" style="font-size:11px; color:#94a3b8; margin-top:4px;">25% 요금할인</div>
+                </button>
+              </div>
+              <input type="hidden" id="adminOpenType" value="subsidy">
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+              <select id="qCarrier" class="input"><option>KT</option><option>LGU+</option><option>SKT</option></select>
+              <select id="qType" class="input"><option>번호이동</option><option>기기변경</option></select>
+              <select id="qDevice" class="input"></select>
+              <select id="qColor" class="input"></select>
+              <select id="qStorage" class="input"></select>
+              <select id="qPlan" class="input"></select>
+              <select id="qMonths" class="input"><option>12</option><option selected>24</option></select>
+            </div>
+            <div class="mt-4">
+              <div class="text-xs text-slate-400 mb-2">요금제 빠른 선택</div>
+              <div id="planButtons" class="flex flex-wrap gap-2"></div>
+            </div>
+            <div class="mt-4 card">
+              <div class="text-xs text-slate-400">선택 단말 요약</div>
+              <div id="quoteDeviceSummary" class="mt-2 text-sm text-white">기종을 선택하면 상세가 표시됩니다.</div>
+            </div>
+            <div class="mt-4 space-y-2 text-sm">
+              <label class="flex items-center gap-2"><input id="qBundle" type="checkbox" checked> 결합 할인</label>
+              <label class="flex items-center gap-2"><input id="qCard" type="checkbox" checked> 카드 할인</label>
+              <label class="flex items-center gap-2"><input id="qAddon" type="checkbox" checked> 부가서비스</label>
+            </div>
+            <button id="calcBtn" class="btn mt-4 w-full">견적 계산</button>
+          </div>
+          <div class="xl:col-span-3 card">
+            <h2 class="text-white font-semibold mb-4">견적 결과</h2>
+            <div id="quoteEmpty" class="text-slate-400 py-20 text-center">단가표를 먼저 저장한 뒤 견적 조건을 선택하세요.</div>
+            <div id="quoteResult" class="hidden">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <div class="card border border-emerald-500/30">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div class="text-xs text-slate-400">공시지원금 기준</div>
+                      <div id="qrSubsidyWinner" class="text-lg font-bold text-emerald-400 mt-1">0원</div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-xs text-slate-400">월 납부금</div>
+                      <div id="qrSubsidyMonthly" class="text-sm font-semibold text-white mt-1">0원</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="card border border-blue-500/30">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div class="text-xs text-slate-400">선택약정 기준</div>
+                      <div id="qrSelectionWinner" class="text-lg font-bold text-blue-400 mt-1">0원</div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-xs text-slate-400">월 납부금</div>
+                      <div id="qrSelectionMonthly" class="text-sm font-semibold text-white mt-1">0원</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div class="card"><div class="text-xs text-slate-400">출고가</div><div id="qrRelease" class="mt-2 font-mono text-white"></div></div>
+                <div class="card"><div class="text-xs text-slate-400">공시지원금</div><div id="qrSubsidy" class="mt-2 font-mono text-emerald-400"></div></div>
+                <div class="card"><div class="text-xs text-slate-400">추가지원금</div><div id="qrExtra" class="mt-2 font-mono text-blue-400"></div></div>
+                <div class="card"><div class="text-xs text-slate-400">총 지원금</div><div id="qrTotalSupport" class="mt-2 font-mono text-amber-400"></div></div>
+                <div class="card"><div class="text-xs text-slate-400">월 요금</div><div id="qrPlanFee" class="mt-2 font-mono text-white"></div></div>
+                <div class="card"><div class="text-xs text-slate-400">할부원금</div><div id="qrInstallBase" class="mt-2 font-mono text-white"></div></div>
+                <div class="card"><div class="text-xs text-slate-400">현금완납가</div><div id="qrCash" class="mt-2 font-mono text-emerald-400"></div></div>
+                <div class="card"><div class="text-xs text-slate-400">실구매가</div><div id="qrReal" class="mt-2 font-mono text-blue-400"></div></div>
+              </div>
+              <div class="card bg-blue-600/10 border-blue-600/30">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="text-xs text-blue-300">추천 결과</div>
+                    <div id="qrRecommendation" class="text-xl font-bold text-white mt-1"></div>
+                    <div id="qrMonthly" class="text-3xl font-bold text-white mt-1"></div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-xs text-slate-400">예상 마진</div>
+                    <div id="qrMargin" class="text-xl font-mono font-bold text-amber-400 mt-1"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 정책표 -->
+      <section id="tab-policy" class="space-y-4 hidden">
+        <div class="card">
+          <h2 class="text-white font-semibold mb-4">정책표 등록</h2>
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <select id="pCarrier" class="input"><option>KT</option><option>LGU+</option><option>SKT</option></select>
+            <select id="pDevice" class="input"></select>
+            <select id="pColor" class="input"></select>
+            <select id="pStorage" class="input"></select>
+            <select id="pType" class="input"><option>번호이동</option><option>기기변경</option></select>
+            <select id="pPlan" class="input"></select>
+            <input id="pSubsidy" type="number" class="input" placeholder="지원금" />
+            <input id="pExtra" type="number" class="input" placeholder="추가지원금" />
+            <input id="pRelease" type="number" class="input" placeholder="출고가" />
+          </div>
+          <div class="grid grid-cols-3 gap-3 mt-3">
+            <div class="mini-card">
+              <div class="text-xs text-slate-400">실구매가 (출고가-지원금-추가지원)</div>
+              <div id="pNetPrice" class="mt-2 text-lg font-bold text-emerald-400">0원</div>
+            </div>
+            <div class="mini-card">
+              <div class="text-xs text-slate-400">마진 (추가지원금 - 13만)</div>
+              <div id="pMarginView" class="mt-2 text-lg font-bold text-blue-400">0원</div>
+            </div>
+            <div class="mini-card">
+              <div class="text-xs text-slate-400">총 지원금</div>
+              <div id="pTotalSupport" class="mt-2 text-lg font-bold text-white">0원</div>
+            </div>
+          </div>
+          <button id="savePolicyBtn" class="btn mt-4">정책 저장</button>
+        </div>
+        <div class="card">
+          <h2 class="text-white font-semibold mb-4">정책 목록</h2>
+          <div class="overflow-x-auto">
+            <table>
+              <thead><tr><th>통신사</th><th>기종</th><th>색상</th><th>용량</th><th>유형</th><th>요금제</th><th>지원금</th><th>추가지원</th><th>마진</th><th>출고가</th><th>삭제</th></tr></thead>
+              <tbody id="policyTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 조직 관리 -->
+      <section id="tab-org" class="space-y-4 hidden">
+        <div class="card">
+          <h2 class="text-white font-semibold mb-4">직원 / 하부점 등록</h2>
+          <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <input id="oName" class="input" placeholder="이름" />
+            <select id="oRole" class="input"><option>총판</option><option>하부점</option><option selected>프리랜서</option></select>
+            <input id="oParent" class="input" placeholder="상위조직" />
+            <input id="oCode" class="input" placeholder="추천인 코드" />
+            <input id="oRate" type="number" class="input" placeholder="정산 비율(%)" />
+            <select id="oStatus" class="input"><option selected>활성</option><option>대기</option><option>비활성</option></select>
+          </div>
+          <button id="saveOrgBtn" class="btn mt-4">조직 저장</button>
+        </div>
+        <div class="card">
+          <h2 class="text-white font-semibold mb-4">직원 / 하부점 목록</h2>
+          <div class="overflow-x-auto">
+            <table>
+              <thead><tr><th>이름</th><th>권한</th><th>상위조직</th><th>추천인 코드</th><th>정산비율</th><th>상태</th><th>삭제</th></tr></thead>
+              <tbody id="orgTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 개통 관리 -->
+      <section id="tab-opening" class="space-y-4 hidden">
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div class="card">
+            <h2 class="text-white font-semibold mb-4">개통 등록</h2>
+            <div class="grid grid-cols-2 gap-3">
+              <input id="cCustomer" class="input" placeholder="고객명" />
+              <input id="cPhone" class="input" placeholder="연락처" />
+              <select id="cCarrier" class="input"><option>KT</option><option>LGU+</option><option>SKT</option></select>
+              <select id="cDevice" class="input"></select>
+              <select id="cColor" class="input"></select>
+              <select id="cStorage" class="input"></select>
+              <select id="cType" class="input"><option>번호이동</option><option>기기변경</option></select>
+              <select id="cPlan" class="input"></select>
+              <select id="cManager" class="input"></select>
+              <input id="cSalePrice" type="number" class="input" placeholder="판매가" />
+              <select id="cStatus" class="input"><option>접수</option><option>진행중</option><option selected>개통완료</option><option>취소</option></select>
+            </div>
+            <button id="saveOpeningBtn" class="btn mt-4 w-full">개통 저장</button>
+          </div>
+          <div class="card">
+            <h2 class="text-white font-semibold mb-4">개통 목록</h2>
+            <div class="overflow-x-auto">
+              <table>
+                <thead><tr><th>고객</th><th>기종</th><th>담당자</th><th>판매가</th><th>상태</th><th>삭제</th></tr></thead>
+                <tbody id="openingTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 정산 현황 -->
+      <section id="tab-settlement" class="space-y-4 hidden">
+        <div class="card">
+          <h2 class="text-white font-semibold mb-4">정산 내역</h2>
+          <div class="overflow-x-auto">
+            <table>
+              <thead><tr><th>개통ID</th><th>담당자</th><th>판매가</th><th>마진</th><th>수수료</th><th>지급금</th><th>상태</th><th>관리</th></tr></thead>
+              <tbody id="settlementTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 가입 승인 -->
+      <section id="tab-approval" class="space-y-4 hidden">
+        <div class="card">
+          <h2 class="text-white font-semibold mb-4">업체 가입 승인 관리</h2>
+          <div class="overflow-x-auto">
+            <table>
+              <thead><tr><th>업천명</th><th>업체코드</th><th>대표자</th><th>연락처</th><th>추천인</th><th>상태</th><th>승인/거절</th></tr></thead>
+              <tbody id="approvalTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // ===================== 데이터 마스터 (원본 그대로) =====================
+    const KEY = { policies:'굿칼랩스-policies', orgs:'굿칼랩스-orgs', openings:'굿칼랩스-openings', upchaeUsers:'굿칼랩스-upchae-users' };
+    const DEVICE_MASTER = {
+      'KT': [
+        { name:'갤럭시 S26', color:['블랙','화이트','핑크','민트'], storage:['128G','256G','512G'], releasePrice:1540000, maker:'삼성', desc:'KT 주력 보급형 플래그십', emoji:'📱', subsidy:{번호이동:700000,기기변경:500000} },
+        { name:'갤럭시 S26+', color:['블랙','화이트','실버'], storage:['256G','512G'], releasePrice:1652000, maker:'삼성', desc:'KT 중상급 플래그십', emoji:'📱', subsidy:{번호이동:700000,기기변경:600000} },
+        { name:'갤럭시 S26 울트라', color:['티타늄 블랙','티타늄 화이트','티타늄 그레이'], storage:['256G','512G'], releasePrice:1797400, maker:'삼성', desc:'KT 플래그십 라인업', emoji:'📱', subsidy:{번호이동:700000,기기변경:600000} },
+        { name:'갤럭시 S25', color:['네이비','실버','아이스블루','민트'], storage:['128G','256G','512G'], releasePrice:1155000, maker:'삼성', desc:'KT 전년도 주력 모델', emoji:'📱', subsidy:{번호이동:400000,기기변경:200000} },
+        { name:'갤럭시 S25+', color:['네이비','실버','아이스블루'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'KT 중상급 주력 모델', emoji:'📱', subsidy:{번호이동:450000,기기변경:250000} },
+        { name:'갤럭시 S25 울트라', color:['티타늄 블랙','티타늄 그레이','티타늄 실버'], storage:['256G','512G'], releasePrice:1694000, maker:'삼성', desc:'KT 전년도 플래그십', emoji:'📱', subsidy:{번호이동:500000,기기변경:300000} },
+        { name:'갤럭시 Z 플립7', color:['민트','블랙','핑크','크림'], storage:['256G','512G'], releasePrice:1485000, maker:'삼성', desc:'KT 폴드블 특화 모델', emoji:'📲', subsidy:{번호이동:600000,기기변경:520000} },
+        { name:'갤럭시 Z 폴드7', color:['블랙','실버','네이비'], storage:['256G','512G'], releasePrice:2379300, maker:'삼성', desc:'KT 대화면 폴드블', emoji:'📲', subsidy:{번호이동:500000,기기변경:470000} },
+        { name:'갤럭시 Z 플립6', color:['블루','실버','민트','옐로우'], storage:['256G','512G'], releasePrice:1485000, maker:'삼성', desc:'KT 전년도 플립', emoji:'📲', subsidy:{번호이동:450000,기기변경:250000} },
+        { name:'갤럭시 Z 폴드6', color:['블랙','네이비','핑크'], storage:['256G','512G'], releasePrice:2398000, maker:'삼성', desc:'KT 전년도 폴드', emoji:'📲', subsidy:{번호이동:550000,기기변경:350000} },
+        { name:'갤럭시 Z 플립5', color:['크림','그라파이트','민트','라벤더'], storage:['256G','512G'], releasePrice:1398000, maker:'삼성', desc:'KT 2년전 플립', emoji:'📲', subsidy:{번호이동:400000,기기변경:200000} },
+        { name:'갤럭시 Z 폴드5', color:['아이스 블루','팬텀 블랙','크림'], storage:['256G','512G'], releasePrice:2098000, maker:'삼성', desc:'KT 2년전 폴드', emoji:'📲', subsidy:{번호이동:500000,기기변경:300000} },
+        { name:'갤럭시 Z 플립4', color:['볼드','볼드2','볼드3'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'KT 3년전 플립', emoji:'📲', subsidy:{번호이동:350000,기기변경:150000} },
+        { name:'갤럭시 Z 폴드4', color:['그레이','블랙','그린'], storage:['256G','512G'], releasePrice:1998000, maker:'삼성', desc:'KT 3년전 폴드', emoji:'📲', subsidy:{번호이동:450000,기기변경:250000} },
+        { name:'갤럭시 S24', color:['엠버','코발트','마블','잉크'], storage:['128G','256G','512G'], releasePrice:1155000, maker:'삼성', desc:'KT 2년전 주력 모델', emoji:'📱', subsidy:{번호이동:350000,기기변경:150000} },
+        { name:'갤럭시 S24+', color:['코발트','마블','잉크'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'KT 2년전 중상급 모델', emoji:'📱', subsidy:{번호이동:400000,기기변경:200000} },
+        { name:'갤럭시 S24 울트라', color:['티타늄 그레이','티타늄 블랙','티타늄 바이올렛'], storage:['256G','512G'], releasePrice:1694000, maker:'삼성', desc:'KT 2년전 플래그십', emoji:'📱', subsidy:{번호이동:450000,기기변경:250000} },
+        { name:'갤럭시 S24 FE', color:['블루','그래파이트','민트'], storage:['128G','256G'], releasePrice:897000, maker:'삼성', desc:'KT 보급형 FE', emoji:'📱', subsidy:{번호이동:300000,기기변경:100000} },
+        { name:'갤럭시 S23', color:['팬텀블랙','크림','그린','라벤더'], storage:['128G','256G','512G'], releasePrice:1055000, maker:'삼성', desc:'KT 3년전 주력 모델', emoji:'📱', subsidy:{번호이동:300000,기기변경:100000} },
+        { name:'갤럭시 S23+', color:['팬텀블랙','크림','그린'], storage:['256G','512G'], releasePrice:1240000, maker:'삼성', desc:'KT 3년전 중상급 모델', emoji:'📱', subsidy:{번호이동:350000,기기변경:150000} },
+        { name:'갤럭시 S23 울트라', color:['팬텀블랙','크림','그린','라벤더'], storage:['256G','512G'], releasePrice:1520000, maker:'삼성', desc:'KT 3년전 플래그십', emoji:'📱', subsidy:{번호이동:400000,기기변경:200000} },
+        { name:'갤럭시 A24', color:['블랙','실버','라이트그린'], storage:['128G'], releasePrice:396000, maker:'삼성', desc:'KT 입문형 보급', emoji:'📱', subsidy:{번호이동:150000,기기변경:80000} },
+        { name:'갤럭시 A23', color:['블랙','화이트','블루'], storage:['128G'], releasePrice:374000, maker:'삼성', desc:'KT 입문형', emoji:'📱', subsidy:{번호이동:120000,기기변경:60000} },
+        { name:'아이폰 17', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1187000, maker:'애플', desc:'KT 기본형 아이폰', emoji:'🍎', subsidy:{번호이동:654000,기기변경:500000} },
+        { name:'아이폰 17 Pro', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1278000, maker:'애플', desc:'KT 프로 모델', emoji:'🍎', subsidy:{번호이동:654000,기기변경:500000} },
+        { name:'아이폰 17 Pro Max', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1530000, maker:'애플', desc:'KT 최상위 아이폰', emoji:'🍎', subsidy:{번호이동:654000,기기변경:450000} },
+        { name:'아이폰 16', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'KT 전년도 기본형', emoji:'🍎', subsidy:{번호이동:450000,기기변경:750000} },
+        { name:'아이폰 16 플러스', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'KT 전년도 플러스', emoji:'🍎', subsidy:{번호이동:380000,기기변경:180000} },
+        { name:'아이폰 16 Pro', color:['블랙','화이트','네추럴','퍼플'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'KT 전년도 프로', emoji:'🍎', subsidy:{번호이동:400000,기기변경:200000} },
+        { name:'아이폰 16 Pro Max', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1694000, maker:'애플', desc:'KT 전년도 프로맥스', emoji:'🍎', subsidy:{번호이동:450000,기기변경:250000} },
+        { name:'아이폰 16e', color:['블랙','화이트'], storage:['128G'], releasePrice:990000, maker:'애플', desc:'KT 보급형 아이폰', emoji:'🍎', subsidy:{번호이동:250000,기기변경:100000} },
+        { name:'아이폰 15', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'KT 2년전 기본형', emoji:'🍎', subsidy:{번호이동:300000,기기변경:100000} },
+        { name:'아이폰 15 플러스', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'KT 2년전 플러스', emoji:'🍎', subsidy:{번호이동:330000,기기변경:130000} },
+        { name:'아이폰 15 Pro', color:['블랙','화이트','네추럴','블루'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'KT 2년전 프로', emoji:'🍎', subsidy:{번호이동:350000,기기변경:150000} },
+        { name:'아이폰 15 Pro Max', color:['블랙','화이트','네추럴','블루'], storage:['256G','512G','1TB'], releasePrice:1694000, maker:'애플', desc:'KT 2년전 프로맥스', emoji:'🍎', subsidy:{번호이동:400000,기기변경:200000} },
+        { name:'아이폰 14', color:['미드나이트','스타라이트','블루','퍼플','옐로우'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'KT 3년전 기본형', emoji:'🍎', subsidy:{번호이동:250000,기기변경:100000} },
+        { name:'아이폰 14 플러스', color:['미드나이트','스타라이트','블루','퍼플','옐로우'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'KT 3년전 플러스', emoji:'🍎', subsidy:{번호이동:280000,기기변경:100000} },
+        { name:'아이폰 14 Pro', color:['스페이스블랙','실버','골드','딥퍼플'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'KT 3년전 프로', emoji:'🍎', subsidy:{번호이동:300000,기기변경:100000} },
+        { name:'아이폰 14 Pro Max', color:['스페이스블랙','실버','골드','딥퍼플'], storage:['256G','512G'], releasePrice:1694000, maker:'애플', desc:'KT 3년전 프로맥스', emoji:'🍎', subsidy:{번호이동:350000,기기변경:150000} }
+      ],
+      'LGU+': [
+        { name:'갤럭시 S26', color:['블랙','화이트','핑크','민트'], storage:['128G','256G','512G'], releasePrice:1353000, maker:'삼성', desc:'LGU+ 주력 보급형 플래그십', emoji:'📱', subsidy:{번호이동:460000,기기변경:260000} },
+        { name:'갤럭시 S26+', color:['블랙','화이트','실버'], storage:['256G','512G'], releasePrice:1485000, maker:'삼성', desc:'LGU+ 중상급 플래그십', emoji:'📱', subsidy:{번호이동:510000,기기변경:310000} },
+        { name:'갤럭시 S26 울트라', color:['티타늄 블랙','티타늄 화이트','티타늄 그레이'], storage:['256G','512G'], releasePrice:1782000, maker:'삼성', desc:'LGU+ 프리미어 요금제 비교용', emoji:'📱', subsidy:{번호이동:560000,기기변경:360000} },
+        { name:'갤럭시 S25', color:['네이비','실버','아이스블루','민트'], storage:['128G','256G','512G'], releasePrice:1155000, maker:'삼성', desc:'LGU+ 전년도 주력 모델', emoji:'📱', subsidy:{번호이동:410000,기기변경:210000} },
+        { name:'갤럭시 S25+', color:['네이비','실버','아이스블루'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'LGU+ 중상급 주력 모델', emoji:'📱', subsidy:{번호이동:460000,기기변경:260000} },
+        { name:'갤럭시 S25 울트라', color:['티타늄 블랙','티타늄 그레이','티타늄 실버'], storage:['256G','512G'], releasePrice:1694000, maker:'삼성', desc:'LGU+ 전년도 플래그십', emoji:'📱', subsidy:{번호이동:510000,기기변경:310000} },
+        { name:'갤럭시 Z 플립7', color:['민트','블랙','핑크','크림'], storage:['256G','512G'], releasePrice:1485000, maker:'삼성', desc:'LGU+ 폴드블 특화 모델', emoji:'📲', subsidy:{번호이동:510000,기기변경:310000} },
+        { name:'갤럭시 Z 폴드7', color:['블랙','실버','네이비'], storage:['256G','512G'], releasePrice:2398000, maker:'삼성', desc:'LGU+ 대화면 폴드블', emoji:'📲', subsidy:{번호이동:610000,기기변경:410000} },
+        { name:'갤럭시 Z 플립6', color:['블루','실버','민트','옐로우'], storage:['256G','512G'], releasePrice:1485000, maker:'삼성', desc:'LGU+ 전년도 플립', emoji:'📲', subsidy:{번호이동:460000,기기변경:260000} },
+        { name:'갤럭시 Z 폴드6', color:['블랙','네이비','핑크'], storage:['256G','512G'], releasePrice:2398000, maker:'삼성', desc:'LGU+ 전년도 폴드', emoji:'📲', subsidy:{번호이동:560000,기기변경:360000} },
+        { name:'갤럭시 Z 플립5', color:['크림','그라파이트','민트','라벤더'], storage:['256G','512G'], releasePrice:1398000, maker:'삼성', desc:'LGU+ 2년전 플립', emoji:'📲', subsidy:{번호이동:410000,기기변경:210000} },
+        { name:'갤럭시 Z 폴드5', color:['아이스 블루','팬텀 블랙','크림'], storage:['256G','512G'], releasePrice:2098000, maker:'삼성', desc:'LGU+ 2년전 폴드', emoji:'📲', subsidy:{번호이동:510000,기기변경:310000} },
+        { name:'갤럭시 Z 플립4', color:['볼드','볼드2','볼드3'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'LGU+ 3년전 플립', emoji:'📲', subsidy:{번호이동:360000,기기변경:160000} },
+        { name:'갤럭시 Z 폴드4', color:['그레이','블랙','그린'], storage:['256G','512G'], releasePrice:1998000, maker:'삼성', desc:'LGU+ 3년전 폴드', emoji:'📲', subsidy:{번호이동:460000,기기변경:260000} },
+        { name:'갤럭시 S24', color:['엠버','코발트','마블','잉크'], storage:['128G','256G','512G'], releasePrice:1155000, maker:'삼성', desc:'LGU+ 2년전 주력 모델', emoji:'📱', subsidy:{번호이동:360000,기기변경:160000} },
+        { name:'갤럭시 S24+', color:['코발트','마블','잉크'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'LGU+ 2년전 중상급 모델', emoji:'📱', subsidy:{번호이동:410000,기기변경:210000} },
+        { name:'갤럭시 S24 울트라', color:['티타늄 그레이','티타늄 블랙','티타늄 바이올렛'], storage:['256G','512G'], releasePrice:1694000, maker:'삼성', desc:'LGU+ 2년전 플래그십', emoji:'📱', subsidy:{번호이동:460000,기기변경:260000} },
+        { name:'갤럭시 S24 FE', color:['블루','그래파이트','민트'], storage:['128G','256G'], releasePrice:897000, maker:'삼성', desc:'LGU+ 보급형 FE', emoji:'📱', subsidy:{번호이동:310000,기기변경:110000} },
+        { name:'갤럭시 S23', color:['팬텀블랙','크림','그린','라벤더'], storage:['128G','256G','512G'], releasePrice:1055000, maker:'삼성', desc:'LGU+ 3년전 주력 모델', emoji:'📱', subsidy:{번호이동:310000,기기변경:110000} },
+        { name:'갤럭시 S23+', color:['팬텀블랙','크림','그린'], storage:['256G','512G'], releasePrice:1240000, maker:'삼성', desc:'LGU+ 3년전 중상급 모델', emoji:'📱', subsidy:{번호이동:360000,기기변경:160000} },
+        { name:'갤럭시 S23 울트라', color:['팬텀블랙','크림','그린','라벤더'], storage:['256G','512G'], releasePrice:1520000, maker:'삼성', desc:'LGU+ 3년전 플래그십', emoji:'📱', subsidy:{번호이동:410000,기기변경:210000} },
+        { name:'갤럭시 A24', color:['블랙','실버','라이트그린'], storage:['128G'], releasePrice:396000, maker:'삼성', desc:'LGU+ 입문형 보급', emoji:'📱', subsidy:{번호이동:150000,기기변경:80000} },
+        { name:'갤럭시 A23', color:['블랙','화이트','블루'], storage:['128G'], releasePrice:374000, maker:'삼성', desc:'LGU+ 입문형', emoji:'📱', subsidy:{번호이동:120000,기기변경:60000} },
+        { name:'U+ 스마트 With', color:['블랙','화이트'], storage:['64G'], releasePrice:220000, maker:'삼성', desc:'LGU+ 스마트폰', emoji:'📱', subsidy:{번호이동:80000,기기변경:40000} },
+        { name:'U+ 케이즈 With 무비', color:['블랙','화이트'], storage:['64G'], releasePrice:250000, maker:'삼성', desc:'LGU+ 케이즈 무비', emoji:'📱', subsidy:{번호이동:90000,기기변경:50000} },
+        { name:'U+ 케이즈 무비2', color:['블랙','화이트'], storage:['64G'], releasePrice:280000, maker:'삼성', desc:'LGU+ 케이즈 무비2', emoji:'📱', subsidy:{번호이동:100000,기기변경:60000} },
+        { name:'아이폰 17', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'LGU+ 기본형 아이폰', emoji:'🍎', subsidy:{번호이동:410000,기기변경:210000} },
+        { name:'아이폰 17 Pro', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1782000, maker:'애플', desc:'LGU+ 프로 모델', emoji:'🍎', subsidy:{번호이동:510000,기기변경:310000} },
+        { name:'아이폰 17 Pro Max', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1924000, maker:'애플', desc:'LGU+ 최상위 아이폰', emoji:'🍎', subsidy:{번호이동:560000,기기변경:360000} },
+        { name:'아이폰 16', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'LGU+ 전년도 기본형', emoji:'🍎', subsidy:{번호이동:360000,기기변경:160000} },
+        { name:'아이폰 16 플러스', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'LGU+ 전년도 플러스', emoji:'🍎', subsidy:{번호이동:390000,기기변경:190000} },
+        { name:'아이폰 16 Pro', color:['블랙','화이트','네추럴','퍼플'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'LGU+ 전년도 프로', emoji:'🍎', subsidy:{번호이동:410000,기기변경:210000} },
+        { name:'아이폰 16 Pro Max', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1694000, maker:'애플', desc:'LGU+ 전년도 프로맥스', emoji:'🍎', subsidy:{번호이동:460000,기기변경:260000} },
+        { name:'아이폰 16e', color:['블랙','화이트'], storage:['128G'], releasePrice:990000, maker:'애플', desc:'LGU+ 보급형 아이폰', emoji:'🍎', subsidy:{번호이동:260000,기기변경:110000} },
+        { name:'아이폰 15', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'LGU+ 2년전 기본형', emoji:'🍎', subsidy:{번호이동:310000,기기변경:110000} },
+        { name:'아이폰 15 플러스', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'LGU+ 2년전 플러스', emoji:'🍎', subsidy:{번호이동:340000,기기변경:140000} },
+        { name:'아이폰 15 Pro', color:['블랙','화이트','네추럴','블루'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'LGU+ 2년전 프로', emoji:'🍎', subsidy:{번호이동:360000,기기변경:160000} },
+        { name:'아이폰 15 Pro Max', color:['블랙','화이트','네추럴','블루'], storage:['256G','512G','1TB'], releasePrice:1694000, maker:'애플', desc:'LGU+ 2년전 프로맥스', emoji:'🍎', subsidy:{번호이동:410000,기기변경:210000} },
+        { name:'아이폰 14', color:['미드나이트','스타라이트','블루','퍼플','옐로우'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'LGU+ 3년전 기본형', emoji:'🍎', subsidy:{번호이동:260000,기기변경:110000} },
+        { name:'아이폰 14 플러스', color:['미드나이트','스타라이트','블루','퍼플','옐로우'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'LGU+ 3년전 플러스', emoji:'🍎', subsidy:{번호이동:290000,기기변경:110000} },
+        { name:'아이폰 14 Pro', color:['스페이스블랙','실버','골드','딥퍼플'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'LGU+ 3년전 프로', emoji:'🍎', subsidy:{번호이동:310000,기기변경:110000} },
+        { name:'아이폰 14 Pro Max', color:['스페이스블랙','실버','골드','딥퍼플'], storage:['256G','512G'], releasePrice:1694000, maker:'애플', desc:'LGU+ 3년전 프로맥스', emoji:'🍎', subsidy:{번호이동:360000,기기변경:160000} }
+      ],
+      'SKT': [
+        { name:'갤럭시 S26', color:['블랙','화이트','핑크','민트'], storage:['128G','256G','512G'], releasePrice:1353000, maker:'삼성', desc:'SKT 주력 보급형 플래그십', emoji:'📱', subsidy:{번호이동:440000,기기변경:240000} },
+        { name:'갤럭시 S26+', color:['블랙','화이트','실버'], storage:['256G','512G'], releasePrice:1485000, maker:'삼성', desc:'SKT 중상급 플래그십', emoji:'📱', subsidy:{번호이동:490000,기기변경:290000} },
+        { name:'갤럭시 S26 울트라', color:['티타늄 블랙','티타늄 화이트','티타늄 그레이'], storage:['256G','512G'], releasePrice:1782000, maker:'삼성', desc:'SKT 프리미엄 판매용', emoji:'📱', subsidy:{번호이동:540000,기기변경:340000} },
+        { name:'갤럭시 S25', color:['네이비','실버','아이스블루','민트'], storage:['128G','256G','512G'], releasePrice:1155000, maker:'삼성', desc:'SKT 전년도 주력 모델', emoji:'📱', subsidy:{번호이동:390000,기기변경:190000} },
+        { name:'갤럭시 S25+', color:['네이비','실버','아이스블루'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'SKT 중상급 주력 모델', emoji:'📱', subsidy:{번호이동:440000,기기변경:240000} },
+        { name:'갤럭시 S25 울트라', color:['티타늄 블랙','티타늄 그레이','티타늄 실버'], storage:['256G','512G'], releasePrice:1694000, maker:'삼성', desc:'SKT 전년도 플래그십', emoji:'📱', subsidy:{번호이동:490000,기기변경:290000} },
+        { name:'갤럭시 Z 플립7', color:['민트','블랙','핑크','크림'], storage:['256G','512G'], releasePrice:1485000, maker:'삼성', desc:'SKT 폴드블 특화 모델', emoji:'📲', subsidy:{번호이동:490000,기기변경:290000} },
+        { name:'갤럭시 Z 폴드7', color:['블랙','실버','네이비'], storage:['256G','512G'], releasePrice:2398000, maker:'삼성', desc:'SKT 대화면 폴드블', emoji:'📲', subsidy:{번호이동:590000,기기변경:390000} },
+        { name:'갤럭시 Z 플립6', color:['블루','실버','민트','옐로우'], storage:['256G','512G'], releasePrice:1485000, maker:'삼성', desc:'SKT 전년도 플립', emoji:'📲', subsidy:{번호이동:440000,기기변경:240000} },
+        { name:'갤럭시 Z 폴드6', color:['블랙','네이비','핑크'], storage:['256G','512G'], releasePrice:2398000, maker:'삼성', desc:'SKT 전년도 폴드', emoji:'📲', subsidy:{번호이동:540000,기기변경:340000} },
+        { name:'갤럭시 Z 플립5', color:['크림','그라파이트','민트','라벤더'], storage:['256G','512G'], releasePrice:1398000, maker:'삼성', desc:'SKT 2년전 플립', emoji:'📲', subsidy:{번호이동:390000,기기변경:190000} },
+        { name:'갤럭시 Z 폴드5', color:['아이스 블루','팬텀 블랙','크림'], storage:['256G','512G'], releasePrice:2098000, maker:'삼성', desc:'SKT 2년전 폴드', emoji:'📲', subsidy:{번호이동:490000,기기변경:290000} },
+        { name:'갤럭시 Z 플립4', color:['볼드','볼드2','볼드3'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'SKT 3년전 플립', emoji:'📲', subsidy:{번호이동:340000,기기변경:140000} },
+        { name:'갤럭시 Z 폴드4', color:['그레이','블랙','그린'], storage:['256G','512G'], releasePrice:1998000, maker:'삼성', desc:'SKT 3년전 폴드', emoji:'📲', subsidy:{번호이동:440000,기기변경:240000} },
+        { name:'갤럭시 S24', color:['엠버','코발트','마블','잉크'], storage:['128G','256G','512G'], releasePrice:1155000, maker:'삼성', desc:'SKT 2년전 주력 모델', emoji:'📱', subsidy:{번호이동:340000,기기변경:140000} },
+        { name:'갤럭시 S24+', color:['코발트','마블','잉크'], storage:['256G','512G'], releasePrice:1353000, maker:'삼성', desc:'SKT 2년전 중상급 모델', emoji:'📱', subsidy:{번호이동:390000,기기변경:190000} },
+        { name:'갤럭시 S24 울트라', color:['티타늄 그레이','티타늄 블랙','티타늄 바이올렛'], storage:['256G','512G'], releasePrice:1694000, maker:'삼성', desc:'SKT 2년전 플래그십', emoji:'📱', subsidy:{번호이동:440000,기기변경:240000} },
+        { name:'갤럭시 S24 FE', color:['블루','그래파이트','민트'], storage:['128G','256G'], releasePrice:897000, maker:'삼성', desc:'SKT 보급형 FE', emoji:'📱', subsidy:{번호이동:290000,기기변경:90000} },
+        { name:'갤럭시 S23', color:['팬텀블랙','크림','그린','라벤더'], storage:['128G','256G','512G'], releasePrice:1055000, maker:'삼성', desc:'SKT 3년전 주력 모델', emoji:'📱', subsidy:{번호이동:290000,기기변경:90000} },
+        { name:'갤럭시 S23+', color:['팬텀블랙','크림','그린'], storage:['256G','512G'], releasePrice:1240000, maker:'삼성', desc:'SKT 3년전 중상급 모델', emoji:'📱', subsidy:{번호이동:340000,기기변경:140000} },
+        { name:'갤럭시 S23 울트라', color:['팬텀블랙','크림','그린','라벤더'], storage:['256G','512G'], releasePrice:1520000, maker:'삼성', desc:'SKT 3년전 플래그십', emoji:'📱', subsidy:{번호이동:390000,기기변경:190000} },
+        { name:'갤럭시 A24', color:['블랙','실버','라이트그린'], storage:['128G'], releasePrice:396000, maker:'삼성', desc:'SKT 입문형 보급', emoji:'📱', subsidy:{번호이동:140000,기기변경:70000} },
+        { name:'갤럭시 A23', color:['블랙','화이트','블루'], storage:['128G'], releasePrice:374000, maker:'삼성', desc:'SKT 입문형', emoji:'📱', subsidy:{번호이동:110000,기기변경:50000} },
+        { name:'아이폰 17', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'SKT 기본형 아이폰', emoji:'🍎', subsidy:{번호이동:390000,기기변경:190000} },
+        { name:'아이폰 17 Pro', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1782000, maker:'애플', desc:'SKT 프로 모델', emoji:'🍎', subsidy:{번호이동:490000,기기변경:290000} },
+        { name:'아이폰 17 Pro Max', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1924000, maker:'애플', desc:'SKT 최상위 아이폰', emoji:'🍎', subsidy:{번호이동:540000,기기변경:340000} },
+        { name:'아이폰 16', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'SKT 전년도 기본형', emoji:'🍎', subsidy:{번호이동:340000,기기변경:140000} },
+        { name:'아이폰 16 플러스', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'SKT 전년도 플러스', emoji:'🍎', subsidy:{번호이동:370000,기기변경:170000} },
+        { name:'아이폰 16 Pro', color:['블랙','화이트','네추럴','퍼플'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'SKT 전년도 프로', emoji:'🍎', subsidy:{번호이동:390000,기기변경:190000} },
+        { name:'아이폰 16 Pro Max', color:['블랙','화이트','네추럴','퍼플'], storage:['256G','512G'], releasePrice:1694000, maker:'애플', desc:'SKT 전년도 프로맥스', emoji:'🍎', subsidy:{번호이동:440000,기기변경:240000} },
+        { name:'아이폰 16e', color:['블랙','화이트'], storage:['128G'], releasePrice:990000, maker:'애플', desc:'SKT 보급형 아이폰', emoji:'🍎', subsidy:{번호이동:240000,기기변경:90000} },
+        { name:'아이폰 15', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'SKT 2년전 기본형', emoji:'🍎', subsidy:{번호이동:290000,기기변경:90000} },
+        { name:'아이폰 15 플러스', color:['블랙','화이트','핑크','블루','그린'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'SKT 2년전 플러스', emoji:'🍎', subsidy:{번호이동:320000,기기변경:120000} },
+        { name:'아이폰 15 Pro', color:['블랙','화이트','네추럴','블루'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'SKT 2년전 프로', emoji:'🍎', subsidy:{번호이동:340000,기기변경:140000} },
+        { name:'아이폰 15 Pro Max', color:['블랙','화이트','네추럴','블루'], storage:['256G','512G','1TB'], releasePrice:1694000, maker:'애플', desc:'SKT 2년전 프로맥스', emoji:'🍎', subsidy:{번호이동:390000,기기변경:190000} },
+        { name:'아이폰 14', color:['미드나이트','스타라이트','블루','퍼플','옐로우'], storage:['128G','256G','512G'], releasePrice:1250000, maker:'애플', desc:'SKT 3년전 기본형', emoji:'🍎', subsidy:{번호이동:240000,기기변경:90000} },
+        { name:'아이폰 14 플러스', color:['미드나이트','스타라이트','블루','퍼플','옐로우'], storage:['128G','256G','512G'], releasePrice:1390000, maker:'애플', desc:'SKT 3년전 플러스', emoji:'🍎', subsidy:{번호이동:270000,기기변경:90000} },
+        { name:'아이폰 14 Pro', color:['스페이스블랙','실버','골드','딥퍼플'], storage:['128G','256G','512G'], releasePrice:1550000, maker:'애플', desc:'SKT 3년전 프로', emoji:'🍎', subsidy:{번호이동:290000,기기변경:90000} },
+        { name:'아이폰 14 Pro Max', color:['스페이스블랙','실버','골드','딥퍼플'], storage:['256G','512G'], releasePrice:1694000, maker:'애플', desc:'SKT 3년전 프로맥스', emoji:'🍎', subsidy:{번호이동:340000,기기변경:140000} }
+      ]
+    };
+    const PLAN_OPTIONS = {
+      'KT': ['요고 69 (다이렉트)','요고 61 (다이렉트)','요고 52 (다이렉트)','초이스 베이직','초이스 스페셜','초이스 프리미엄','초이스 프리미엄 플러스'],
+      'LGU+': ['5G 라이트+','5G 스탠다드','5G 프리미어 레귤러','5G 프리미어 플러스','5G 시그니처','5G 시그니처 플러스'],
+      'SKT': ['5GX 레귤러','5GX 프라임','5GX 플래티넘','5GX 플래티넘 플러스','다이렉트 69','다이렉트 61','다이렉트 52']
+    };
+    const SETTINGS = { card:30000, addon:15000, bundle:10000, cash:70000 };
+
+    const load = (k) => { try { return JSON.parse(localStorage.getItem(k) || '[]') } catch { return [] } };
+    const save = (k,v) => localStorage.setItem(k, JSON.stringify(v));
+    const won = (n) => `${Number(n || 0).toLocaleString()}원`;
+    const planPrice = (name) => {
+      if (name.includes('요고 69')) return 69000;
+      if (name.includes('요고 61')) return 61000;
+      if (name.includes('요고 52')) return 52000;
+      if (name.includes('초이스 프리미엄 플러스')) return 150000;
+      if (name.includes('초이스 프리미엄')) return 130000;
+      if (name.includes('초이스 스페셜')) return 110000;
+      if (name.includes('초이스 베이직')) return 90000;
+      if (name.includes('시그니처 플러스')) return 150000;
+      if (name.includes('시그니처')) return 130000;
+      if (name.includes('프리미어 플러스')) return 125000;
+      if (name.includes('프리미어 레귤러')) return 105000;
+      if (name.includes('스탠다드')) return 85000;
+      if (name.includes('라이트+')) return 75000;
+      if (name.includes('플래티넘 플러스')) return 145000;
+      if (name.includes('플래티넘')) return 125000;
+      if (name.includes('프라임')) return 105000;
+      if (name.includes('레귤러')) return 89000;
+      if (name.includes('다이렉트 69')) return 69000;
+      if (name.includes('다이렉트 61')) return 61000;
+      if (name.includes('다이렉트 52')) return 52000;
+      return 69000;
+    };
+
+    let state = {
+      policies: load(KEY.policies),
+      orgs: load(KEY.orgs),
+      openings: load(KEY.openings).map(item => ({ ...item, settlementStatus: item.settlementStatus || '미정산' })),
+      currentTab: 'quote',
+      selectedPolicyId: null
+    };
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // 탭 전환
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.classList.add('btn2'); b.classList.remove('btn'); });
+        btn.classList.add('active'); btn.classList.add('btn'); btn.classList.remove('btn2');
+        document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+        document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+        state.currentTab = btn.dataset.tab;
+        if (btn.dataset.tab === 'approval') renderApprovalTable();
+      };
+    });
+
+    // 견적 기종 채우기
+    function fillQuoteOptions() {
+      const carrier = document.getElementById('qCarrier').value;
+      const devices = DEVICE_MASTER[carrier] || [];
+      document.getElementById('qDevice').innerHTML = devices.map(d => `<option>${d.name}</option>`).join('');
+      syncQuoteDevice();
+      document.getElementById('qPlan').innerHTML = PLAN_OPTIONS[carrier].map(p => `<option>${p}</option>`).join('');
+      renderPlanButtons();
+    }
+
+    function syncQuoteDevice() {
+      const carrier = document.getElementById('qCarrier').value;
+      const name = document.getElementById('qDevice').value;
+      const device = (DEVICE_MASTER[carrier] || []).find(d => d.name === name);
+      if (!device) return;
+      document.getElementById('qColor').innerHTML = (device.color || ['-']).map(c => `<option>${c}</option>`).join('');
+      document.getElementById('qStorage').innerHTML = (device.storage || ['256G']).map(s => `<option>${s}</option>`).join('');
+      renderQuoteDeviceSummary();
+    }
+
+    function renderQuoteDeviceSummary() {
+      const carrier = document.getElementById('qCarrier').value;
+      const name = document.getElementById('qDevice').value;
+      const device = (DEVICE_MASTER[carrier] || []).find(d => d.name === name);
+      const el = document.getElementById('quoteDeviceSummary');
+      if (!device) { el.textContent = '기종을 선택하면 상세가 표시됩니다.'; return; }
+      el.innerHTML = `<div class="font-semibold">${device.name}</div><div class="text-slate-400 mt-1">${device.maker} · ${device.storage.join(', ')} · 출고가 ${won(device.releasePrice)}</div><div class="text-slate-400 mt-1">${device.desc}</div>`;
+    }
+
+    function renderPlanButtons() {
+      const carrier = document.getElementById('qCarrier').value;
+      const plans = PLAN_OPTIONS[carrier] || [];
+      document.getElementById('planButtons').innerHTML = plans.map(p => {
+        const price = planPrice(p);
+        return `<button class="chip" onclick="document.getElementById('qPlan').value='${p}'">${p}<br><span style="font-size:11px;color:#94a3b8">${won(price)}</span></button>`;
+      }).join('');
+    }
+
+    // 정책 기종 채우기
+    function fillPolicyMasterOptions() {
+      const carrier = document.getElementById('pCarrier').value;
+      const devices = DEVICE_MASTER[carrier] || [];
+      document.getElementById('pDevice').innerHTML = devices.map(d => `<option>${d.name}</option>`).join('');
+      document.getElementById('pPlan').innerHTML = PLAN_OPTIONS[carrier].map(p => `<option>${p}</option>`).join('');
+      syncPolicyMasterFields();
+    }
+
+    function syncPolicyMasterFields() {
+      const carrier = document.getElementById('pCarrier').value;
+      const deviceName = document.getElementById('pDevice').value;
+      const device = (DEVICE_MASTER[carrier] || []).find(d => d.name === deviceName);
+      if (!device) return;
+      document.getElementById('pColor').innerHTML = (device.color || ['-']).map(c => `<option>${c}</option>`).join('');
+      document.getElementById('pStorage').innerHTML = (device.storage || ['256G']).map(s => `<option ${s==='256G'?'selected':''}>${s}</option>`).join('');
+      document.getElementById('pRelease').value = device.releasePrice || '';
+      const type = document.getElementById('pType').value;
+      document.getElementById('pSubsidy').value = device.subsidy?.[type] || 0;
+      calculatePolicyPreview();
+    }
+
+    function calculatePolicyPreview() {
+      const release = Number(document.getElementById('pRelease').value || 0);
+      const subsidy = Number(document.getElementById('pSubsidy').value || 0);
+      const extra = Number(document.getElementById('pExtra').value || 0);
+      const net = Math.max(0, release - subsidy - extra);
+      const margin = Math.max(0, extra - 130000);
+      document.getElementById('pNetPrice').textContent = won(net);
+      document.getElementById('pMarginView').textContent = won(margin);
+      document.getElementById('pTotalSupport').textContent = won(subsidy + extra);
+    }
+
+    // 개통 기종 채우기
+    function fillOpeningOptions() {
+      const carrier = document.getElementById('cCarrier').value;
+      const devices = [...new Set([...(DEVICE_MASTER[carrier] || []).map(d => d.name), ...state.policies.filter(p => p.carrier === carrier).map(p => p.device)])];
+      document.getElementById('cDevice').innerHTML = devices.length ? devices.map(d => `<option>${d}</option>`).join('') : '<option>선택 가능한 기종 없음</option>';
+      syncOpeningDeviceFields();
+      fillManagerOptions();
+    }
+
+    function syncOpeningDeviceFields() {
+      const carrier = document.getElementById('cCarrier').value;
+      const deviceName = document.getElementById('cDevice').value;
+      const master = (DEVICE_MASTER[carrier] || []).find(d => d.name === deviceName);
+      const policies = state.policies.filter(p => p.carrier === carrier && p.device === deviceName);
+      const colors = [...new Set(policies.map(p => p.color).filter(Boolean))];
+      const storages = [...new Set(policies.map(p => p.storage).filter(Boolean))];
+      const plans = [...new Set(policies.map(p => p.plan).filter(Boolean))];
+      document.getElementById('cColor').innerHTML = (colors.length ? colors : (master?.color || ['-'])).map(c => `<option>${c}</option>`).join('');
+      document.getElementById('cStorage').innerHTML = (storages.length ? storages : (master?.storage || ['256G'])).map(s => `<option>${s}</option>`).join('');
+      document.getElementById('cPlan').innerHTML = (plans.length ? plans : PLAN_OPTIONS[carrier]).map(p => `<option>${p}</option>`).join('');
+    }
+
+    function fillManagerOptions() {
+      const managers = state.orgs.map(o => o.name);
+      document.getElementById('cManager').innerHTML = managers.length ? managers.map(n => `<option>${n}</option>`).join('') : '<option>담당자 없음</option>';
+    }
+
+    // 견적 계산
+    document.getElementById('calcBtn').onclick = () => {
+      const carrier = document.getElementById('qCarrier').value;
+      const contractType = document.getElementById('adminOpenType').value;
+      const type = document.getElementById('qType').value;
+      const deviceName = document.getElementById('qDevice').value;
+      const planName = document.getElementById('qPlan').value;
+      const months = Number(document.getElementById('qMonths').value);
+      const device = (DEVICE_MASTER[carrier] || []).find(d => d.name === deviceName);
+      const policy = state.policies.find(p => p.carrier === carrier && p.device === deviceName && p.type === type && p.plan === planName)
+        || state.policies.find(p => p.carrier === carrier && p.device === deviceName && p.plan === planName);
+
+      if (!device && !policy) { showToast('기종과 요금제를 선택하세요'); return; }
+
+      const releasePrice = policy?.releasePrice || device?.releasePrice || 0;
+      const subsidy = policy?.subsidy || device?.subsidy?.[type] || 0;
+      const extra = policy?.extra || 0;
+      const planFee = planPrice(planName);
+      const bundle = document.getElementById('qBundle').checked ? SETTINGS.bundle : 0;
+      const card = document.getElementById('qCard').checked ? SETTINGS.card : 0;
+      const addon = document.getElementById('qAddon').checked ? SETTINGS.addon : 0;
+
+      const totalSupport = subsidy + extra;
+      const installBase = Math.max(0, releasePrice - totalSupport);
+      const cashPrice = Math.max(0, releasePrice - subsidy - extra);
+      const deviceMonthly = Math.floor(installBase / months);
+
+      // 공시/선약 분기 계산
+      let planFeeApplied = planFee;
+      let totalMonthly;
+      let recommendationText;
+      let monthlyDisplay;
+
+      if (contractType === '선약') {
+        // 선택약정: 공시지원금 0, 요금 25% 할인
+        const selectiveInstallBase = Math.max(0, releasePrice - extra);
+        const selectiveDeviceMonthly = Math.floor(selectiveInstallBase / months);
+        planFeeApplied = Math.floor(planFee * 0.75);
+        totalMonthly = selectiveDeviceMonthly + planFeeApplied - bundle - card - addon;
+        recommendationText = '선택약정 25% 요금할인';
+        monthlyDisplay = won(totalMonthly) + '/월 (요금 ' + won(planFeeApplied) + ' + 기기 ' + won(selectiveDeviceMonthly) + ')';
+      } else {
+        // 공시지원금
+        totalMonthly = deviceMonthly + planFee - bundle - card - addon;
+        recommendationText = '공시지원금 기준';
+        monthlyDisplay = won(totalMonthly) + '/월';
+      }
+
+      const margin = Math.max(0, extra - 130000);
+
+      // 공시지원금 vs 선택약정 비교
+      const subsidyTotal = (releasePrice - subsidy) + (planFee * months);
+      const selectiveTotal = releasePrice + (planFee * months) - Math.floor(planFee * 0.25 * months);
+      const isSubsidyBetter = subsidyTotal < selectiveTotal;
+
+      document.getElementById('quoteEmpty').classList.add('hidden');
+      document.getElementById('quoteResult').classList.remove('hidden');
+      document.getElementById('qrRelease').textContent = won(releasePrice);
+      document.getElementById('qrSubsidy').textContent = won(subsidy);
+      document.getElementById('qrExtra').textContent = won(extra);
+      document.getElementById('qrTotalSupport').textContent = won(totalSupport);
+      document.getElementById('qrPlanFee').textContent = won(planFee);
+      document.getElementById('qrInstallBase').textContent = won(installBase);
+      document.getElementById('qrCash').textContent = won(cashPrice);
+      document.getElementById('qrReal').textContent = won(cashPrice);
+      document.getElementById('qrSubsidyWinner').textContent = won(subsidyTotal);
+      document.getElementById('qrSubsidyMonthly').textContent = won(Math.floor((releasePrice - subsidy) / months) + planFee);
+      document.getElementById('qrSelectionWinner').textContent = won(selectiveTotal);
+      document.getElementById('qrSelectionMonthly').textContent = won(Math.floor(releasePrice / months) + Math.floor(planFee * 0.75));
+      document.getElementById('qrRecommendation').textContent = recommendationText;
+      document.getElementById('qrMonthly').textContent = monthlyDisplay;
+      document.getElementById('qrMargin').textContent = won(margin);
+    };
+
+    // 정책 저장
+    document.getElementById('savePolicyBtn').onclick = () => {
+      const data = {
+        id: Date.now().toString(),
+        carrier: document.getElementById('pCarrier').value,
+        device: document.getElementById('pDevice').value,
+        color: document.getElementById('pColor').value,
+        storage: document.getElementById('pStorage').value,
+        type: document.getElementById('pType').value,
+        plan: document.getElementById('pPlan').value,
+        subsidy: Number(document.getElementById('pSubsidy').value),
+        extra: Number(document.getElementById('pExtra').value),
+        releasePrice: Number(document.getElementById('pRelease').value),
+        margin: Math.max(0, Number(document.getElementById('pExtra').value) - 130000),
+        date: new Date().toISOString().split('T')[0]
+      };
+      state.policies.unshift(data);
+      save(KEY.policies, state.policies);
+      renderPolicyTable();
+      showToast('정책 저장 완료');
+    };
+
+    // 조직 저장
+    document.getElementById('saveOrgBtn').onclick = () => {
+      const data = {
+        id: Date.now().toString(),
+        name: document.getElementById('oName').value,
+        role: document.getElementById('oRole').value,
+        parent: document.getElementById('oParent').value,
+        code: document.getElementById('oCode').value,
+        rate: Number(document.getElementById('oRate').value),
+        status: document.getElementById('oStatus').value
+      };
+      state.orgs.unshift(data);
+      save(KEY.orgs, state.orgs);
+      renderOrgTable();
+      showToast('조직 저장 완료');
+    };
+
+    // 개통 저장
+    document.getElementById('saveOpeningBtn').onclick = () => {
+      const data = {
+        id: Date.now().toString(),
+        customer: document.getElementById('cCustomer').value,
+        phone: document.getElementById('cPhone').value,
+        carrier: document.getElementById('cCarrier').value,
+        device: document.getElementById('cDevice').value,
+        color: document.getElementById('cColor').value,
+        storage: document.getElementById('cStorage').value,
+        type: document.getElementById('cType').value,
+        plan: document.getElementById('cPlan').value,
+        manager: document.getElementById('cManager').value,
+        salePrice: Number(document.getElementById('cSalePrice').value),
+        status: document.getElementById('cStatus').value,
+        settlementStatus: '미정산',
+        date: new Date().toISOString().split('T')[0]
+      };
+      state.openings.unshift(data);
+      save(KEY.openings, state.openings);
+      renderOpeningTable();
+      renderDashboard();
+      showToast('개통 저장 완료');
+    };
+
+    // 렌더링
+    function renderPolicyTable() {
+      document.getElementById('policyTable').innerHTML = state.policies.map(p => `
+        <tr><td>${p.carrier}</td><td>${p.device}</td><td>${p.color}</td><td>${p.storage}</td><td>${p.type}</td><td>${p.plan}</td><td>${won(p.subsidy)}</td><td>${won(p.extra)}</td><td>${won(p.margin)}</td><td>${won(p.releasePrice)}</td>
+        <td><button class="btn2 text-xs" onclick="deletePolicy('${p.id}')">삭제</button></td></tr>`).join('');
+      document.getElementById('mPolicies').textContent = state.policies.length + '건';
+    }
+
+    function renderOrgTable() {
+      document.getElementById('orgTable').innerHTML = state.orgs.map(o => `
+        <tr><td>${o.name}</td><td>${o.role}</td><td>${o.parent||'-'}</td><td>${o.code||'-'}</td><td>${o.rate}%</td><td><span class="status-badge status-${o.status}">${o.status}</span></td>
+        <td><button class="btn2 text-xs" onclick="deleteOrg('${o.id}')">삭제</button></td></tr>`).join('');
+      document.getElementById('mOrgCount').textContent = state.orgs.length + '명';
+    }
+
+    function renderOpeningTable() {
+      document.getElementById('openingTable').innerHTML = state.openings.map(o => `
+        <tr><td>${o.customer}</td><td>${o.device}</td><td>${o.manager}</td><td>${won(o.salePrice)}</td><td><span class="status-badge status-${o.status}">${o.status}</span></td>
+        <td><button class="btn2 text-xs" onclick="deleteOpening('${o.id}')">삭제</button></td></tr>`).join('');
+    }
+
+    function renderSettlementTable() {
+      const settles = state.openings.filter(o => o.status === '개통완료');
+      document.getElementById('settlementTable').innerHTML = settles.map(o => {
+        const margin = Math.floor(o.salePrice * 0.1);
+        const commission = Math.floor(o.salePrice * 0.05);
+        const payout = margin + commission;
+        return `<tr><td>${o.id.slice(-6)}</td><td>${o.manager}</td><td>${won(o.salePrice)}</td><td>${won(margin)}</td><td>${won(commission)}</td><td>${won(payout)}</td><td>${o.settlementStatus}</td>
+        <td>${o.settlementStatus === '미정산' ? `<button class="btn text-xs" onclick="paySettle('${o.id}')">지급</button>` : '-'}</td></tr>`;
+      }).join('');
+      document.getElementById('mSettles').textContent = settles.filter(s => s.settlementStatus === '미정산').length + '건';
+      document.getElementById('mPaidSettles').textContent = settles.filter(s => s.settlementStatus === '지급완료').length + '건';
+    }
+
+    function renderApprovalTable() {
+      const users = load(KEY.upchaeUsers);
+      document.getElementById('approvalTable').innerHTML = users.map(u => `
+        <tr><td>${u.name}</td><td>${u.code}</td><td>${u.owner||'-'}</td><td>${u.phone||'-'}</td><td>${u.referral||'-'}</td><td><span class="status-badge status-${u.status}">${u.status}</span></td>
+        <td>${u.status === '대기' ? `<button class="btn text-xs" onclick="approveUser('${u.code}','승인')">승인</button> <button class="btn2 text-xs" onclick="approveUser('${u.code}','거절')">거절</button>` : '-'}</td></tr>`).join('');
+      document.getElementById('mPendingUsers').textContent = users.filter(u => u.status === '대기').length + '건';
+    }
+
+    function renderDashboard() {
+      const today = new Date().toISOString().split('T')[0];
+      const todayOpenings = state.openings.filter(o => o.date === today);
+      document.getElementById('mTodayOpen').textContent = todayOpenings.length + '건';
+      document.getElementById('mTodaySales').textContent = won(todayOpenings.reduce((sum, o) => sum + (o.salePrice || 0), 0));
+      renderSettlementTable();
+    }
+
+    // 삭제/승인
+    window.deletePolicy = (id) => { state.policies = state.policies.filter(p => p.id !== id); save(KEY.policies, state.policies); renderPolicyTable(); };
+    window.deleteOrg = (id) => { state.orgs = state.orgs.filter(o => o.id !== id); save(KEY.orgs, state.orgs); renderOrgTable(); };
+    window.deleteOpening = (id) => { state.openings = state.openings.filter(o => o.id !== id); save(KEY.openings, state.openings); renderOpeningTable(); renderDashboard(); };
+    window.paySettle = (id) => {
+      const o = state.openings.find(x => x.id === id);
+      if (o) { o.settlementStatus = '지급완료'; save(KEY.openings, state.openings); renderSettlementTable(); renderDashboard(); showToast('지급 완료'); }
+    };
+    window.approveUser = (code, status) => {
+      const users = load(KEY.upchaeUsers);
+      const u = users.find(x => x.code === code);
+      if (u) { u.status = status; save(KEY.upchaeUsers, users); renderApprovalTable(); showToast(code + ' ' + status + ' 처리'); }
+    };
+
+    // 로그인
+    document.getElementById('loginBtn').onclick = () => {
+      const id = document.getElementById('loginId').value;
+      const pw = document.getElementById('loginPw').value;
+      if (id === 'admin' && pw === '1234') {
+        localStorage.setItem('굿칼랩스_session', JSON.stringify({id, name: id, role: 'MASTER'}));
+        showMainScreen();
+        showToast('관리자 로그인 완료');
+      } else { showToast('아이디/비밀번호 불일치', true); }
+    };
+    document.getElementById('demoLoginBtn').onclick = () => {
+      localStorage.setItem('굿칼랩스_session', JSON.stringify({id: 'demo', name: '데모', role: 'MASTER'}));
+      showMainScreen();
+      showToast('데모 로그인 완료');
+    };
+    document.getElementById('logoutBtn').onclick = () => {
+      localStorage.removeItem('굿칼랩스_session');
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('mainScreen').classList.add('hidden');
+      showToast('로그아웃 완료');
+    };
+
+    function showMainScreen() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('mainScreen').classList.remove('hidden');
+      document.getElementById('userInfo').textContent = '관리자';
+      renderPolicyTable(); renderOrgTable(); renderOpeningTable(); renderDashboard(); renderSettlementTable();
+    }
+
+    // 이벤트 리스너
+    // 할인 방법 탭 전환 (업체용과 동일)
+    document.getElementById('adminTabSubsidy').onclick = function() {
+      document.getElementById('adminOpenType').value = 'subsidy';
+      this.style.background = '#2563eb'; this.style.color = '#fff';
+      document.getElementById('adminTabSelective').style.background = '#1f2937';
+      document.getElementById('adminTabSelective').style.color = '#94a3b8';
+      document.getElementById('adminSubsidyBadge').textContent = '유리';
+      document.getElementById('adminSubsidyBadge').style.color = '#34d399';
+      document.getElementById('adminSelectiveBadge').textContent = '25% 요금할인';
+      document.getElementById('adminSelectiveBadge').style.color = '#94a3b8';
+    };
+    document.getElementById('adminTabSelective').onclick = function() {
+      document.getElementById('adminOpenType').value = 'selective';
+      this.style.background = '#2563eb'; this.style.color = '#fff';
+      document.getElementById('adminTabSubsidy').style.background = '#1f2937';
+      document.getElementById('adminTabSubsidy').style.color = '#94a3b8';
+      document.getElementById('adminSelectiveBadge').textContent = '유리';
+      document.getElementById('adminSelectiveBadge').style.color = '#34d399';
+      document.getElementById('adminSubsidyBadge').textContent = '공통지원금';
+      document.getElementById('adminSubsidyBadge').style.color = '#94a3b8';
+    };
+    document.getElementById('qCarrier').onchange = fillQuoteOptions;
+    document.getElementById('qDevice').onchange = syncQuoteDevice;
+    document.getElementById('qType').onchange = () => { /* 지원금 자동 변경 필요 시 추가 */ };
+    document.getElementById('pCarrier').onchange = fillPolicyMasterOptions;
+    document.getElementById('pDevice').onchange = syncPolicyMasterFields;
+    document.getElementById('pType').onchange = syncPolicyMasterFields;
+    document.getElementById('pSubsidy').oninput = calculatePolicyPreview;
+    document.getElementById('pExtra').oninput = calculatePolicyPreview;
+    document.getElementById('pRelease').oninput = calculatePolicyPreview;
+    document.getElementById('cCarrier').onchange = fillOpeningOptions;
+    document.getElementById('cDevice').onchange = syncOpeningDeviceFields;
+
+    // 초기화
+    const saved = localStorage.getItem('굿칼랩스_session');
+    if (saved) { showMainScreen(); }
+    fillQuoteOptions(); fillPolicyMasterOptions(); fillOpeningOptions();
+
+    // ===== Shift+Alt 글씨 수정 기능 =====
+    let editMode = false;
+    let originalContent = '';
+    document.addEventListener('keydown', function(e) {
+      if (e.shiftKey && e.altKey) {
+        e.preventDefault();
+        if (!editMode) {
+          // 수정 모드 ON
+          editMode = true;
+          originalContent = document.body.innerHTML;
+          document.body.contentEditable = true;
+          document.body.style.cursor = 'text';
+          showToast('글씨 수정 모드 ON (엔터로 저장, ESC로 취소)');
+        } else {
+          // 엔터로 저장
+          editMode = false;
+          document.body.contentEditable = false;
+          document.body.style.cursor = 'default';
+          // 수정된 내용을 localStorage에 저장
+          localStorage.setItem('굿칼랩스_edited_content', document.body.innerHTML);
+          showToast('수정 내용 저장 완료 (새로고침핏 유지)');
+        }
+      }
+      if (e.key === 'Escape' && editMode) {
+        // ESC로 취소 (원래 내용 복원)
+        editMode = false;
+        document.body.contentEditable = false;
+        document.body.style.cursor = 'default';
+        document.body.innerHTML = originalContent;
+        showToast('수정 취소 (원래 내용 복원)');
+      }
+    });
+
+    // 페이지 로드 시 저장된 수정 내용 복원
+    const savedEdit = localStorage.getItem('굿칼랩스_edited_content');
+    if (savedEdit) {
+      document.body.innerHTML = savedEdit;
+      showToast('이전 수정 내용 복원 완료');
+    }
+  </script>
+<script id="굿칼랩스LoginGuarantee">
+(function(){
+  function onReady(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+  onReady(function(){
+    var loginScreen=document.getElementById('loginScreen');
+    var mainScreen=document.getElementById('mainScreen');
+    var userInfo=document.getElementById('userInfo');
+    function openAdmin(){
+      try{
+        var idEl=document.getElementById('loginId');
+        var id=(idEl&&idEl.value?idEl.value.trim():'admin')||'admin';
+        var user={id:id,name:id,role:'MASTER'};
+        localStorage.setItem('굿칼랩스_user',JSON.stringify(user));
+        localStorage.setItem('굿칼랩스_user',JSON.stringify(user));
+        if(loginScreen) loginScreen.classList.add('hidden');
+        if(mainScreen) mainScreen.classList.remove('hidden');
+        if(userInfo) userInfo.textContent=id+' (MASTER)';
+        if(typeof renderAll==='function'){ try{ renderAll(); }catch(e){ console.warn(e); } }
+      }catch(e){ console.error(e); }
+      return false;
+    }
+    var loginBtn=document.getElementById('loginBtn');
+    var demoBtn=document.getElementById('demoLoginBtn');
+    var logoutBtn=document.getElementById('logoutBtn');
+    if(loginBtn) loginBtn.onclick=openAdmin;
+    if(demoBtn) demoBtn.onclick=openAdmin;
+    if(logoutBtn) logoutBtn.onclick=function(){localStorage.removeItem('굿칼랩스_user');localStorage.removeItem('굿칼랩스_user'); if(mainScreen) mainScreen.classList.add('hidden'); if(loginScreen) loginScreen.classList.remove('hidden'); return false;};
+  });
+})();
+</script>
+</body>
+</html>
+
+
+
+
